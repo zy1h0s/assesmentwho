@@ -13,9 +13,10 @@ A Chrome/Edge extension that adds a minimal floating window to **any website** f
 
 ## How It Works
 
-1. The floating window appears on every website you visit
-2. You can capture screenshots or write text from anywhere
-3. When you click Send, the extension:
+1. Click the extension icon to activate the floating window on the current page
+2. You can capture screenshots or write text
+3. Click the icon again to deactivate/remove the window
+4. When you click Send, the extension:
    - Finds an open Claude.ai tab (or creates a new one)
    - Switches to that tab and brings it to focus
    - Pastes your content into Claude's input
@@ -35,17 +36,24 @@ A Chrome/Edge extension that adds a minimal floating window to **any website** f
 
 4. Navigate to and select the `extension` folder
 
-5. The extension is now loaded! Visit any website to see the floating window
+5. The extension is now loaded!
 
 ## Usage
 
+### Activating the Extension
+
+1. Navigate to any website
+2. **Click the extension icon** in your browser toolbar
+3. The floating window will appear on that page
+4. Click the icon again to remove it
+
 ### Screenshot Capture
 
-1. On **any website**, you'll see a minimal floating window
-2. Click **Capture**
-3. Click and drag to select the area you want to capture
-4. Release to capture - it will switch to Claude.ai and paste automatically
-5. Press ESC or right-click to cancel
+1. With the floating window active, click **Capture**
+2. Click and drag to select the area you want to capture
+3. Release to capture - it will switch to Claude.ai and paste automatically
+4. Press ESC or right-click to cancel
+5. Check browser console (F12) if capture fails - error messages will show there
 
 ### Send Text Messages
 
@@ -56,6 +64,7 @@ A Chrome/Edge extension that adds a minimal floating window to **any website** f
 
 ### Window Controls
 
+- **Activate/Deactivate** - Click extension icon in toolbar
 - **Drag** - Click and drag the header to move
 - **Minimize** - Click the `−` button to collapse/expand
 - **Cancel Capture** - ESC key or right-click during selection
@@ -97,14 +106,22 @@ This ensures the paste events work correctly by having the tab active.
 ## Troubleshooting
 
 ### Floating window not appearing
-- Refresh the page after installing
+- Make sure you **clicked the extension icon** (it's not auto-injected)
 - Check if extension is enabled in extensions page
+- Try reloading the extension
+
+### Screenshot capture failing
+- **Check the browser console (F12)** - all errors are logged there
+- Make sure the tab is active when you capture
+- Try clicking the extension icon to deactivate/reactivate
+- Look for errors like "Cannot access..." which means permission issues
 
 ### Screenshot/text not pasting
 - Extension will show notification status
 - Check if a Claude.ai tab opened/activated
 - Look at the Claude.ai tab - content should be there
 - May need to wait a moment for page to fully load
+- Check console for error messages
 
 ### Send button not working
 - The extension tries multiple methods to find/click the send button
