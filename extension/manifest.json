@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Claude Screenshot Helper",
   "version": "1.0.0",
-  "description": "Floating tool for screenshots and text input to Claude.ai",
+  "description": "Floating tool for screenshots and text input to Claude.ai from any website",
   "permissions": [
     "activeTab",
     "tabs",
@@ -10,17 +10,18 @@
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://claude.ai/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*"],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["styles.css"],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
   "action": {

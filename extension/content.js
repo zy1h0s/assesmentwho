@@ -11,13 +11,13 @@ function createFloatingWindow() {
 
   floatWindow.innerHTML = `
     <div class="claude-helper-header" id="drag-header">
-      <span>Claude Helper</span>
+      <span>Claude</span>
       <button id="minimize-btn" title="Minimize">−</button>
     </div>
     <div class="claude-helper-content" id="helper-content">
-      <button id="capture-btn" class="helper-btn">📷 Capture Screenshot</button>
-      <textarea id="text-input" placeholder="Type your message here..."></textarea>
-      <button id="send-btn" class="helper-btn send-btn">Send to Claude</button>
+      <button id="capture-btn" class="helper-btn">Capture</button>
+      <textarea id="text-input" placeholder="Message..."></textarea>
+      <button id="send-btn" class="helper-btn">Send</button>
     </div>
   `;
 
@@ -99,7 +99,7 @@ function startScreenCapture() {
     height: 100%;
     background: rgba(0, 0, 0, 0.3);
     cursor: crosshair;
-    z-index: 999999;
+    z-index: 2147483646;
   `;
 
   const selectionBox = document.createElement('div');
@@ -109,7 +109,7 @@ function startScreenCapture() {
     border: 2px dashed #fff;
     background: rgba(255, 255, 255, 0.1);
     display: none;
-    z-index: 1000000;
+    z-index: 2147483646;
   `;
 
   document.body.appendChild(overlay);
@@ -164,7 +164,7 @@ function startScreenCapture() {
     if (width > 10 && height > 10) {
       await captureArea({ left, top, width, height });
     } else if (width > 0 || height > 0) {
-      showNotification('Selection too small - try again', true);
+      showNotification('Selection too small', true);
     }
   });
 
@@ -172,14 +172,14 @@ function startScreenCapture() {
   overlay.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     cleanup();
-    showNotification('Capture cancelled');
+    showNotification('Cancelled');
   });
 
   // ESC to cancel
   const escapeHandler = (e) => {
     if (e.key === 'Escape') {
       cleanup();
-      showNotification('Capture cancelled');
+      showNotification('Cancelled');
     }
   };
   document.addEventListener('keydown', escapeHandler);
@@ -195,6 +195,8 @@ function startScreenCapture() {
 // Capture the selected area
 async function captureArea(area) {
   try {
+    showNotification('Capturing...');
+
     // Send message to background script to capture
     chrome.runtime.sendMessage({
       action: 'captureScreen',
@@ -202,113 +204,36 @@ async function captureArea(area) {
       devicePixelRatio: window.devicePixelRatio
     }, async (response) => {
       if (response && response.dataUrl) {
-        // Convert data URL to blob
-        const blob = await (await fetch(response.dataUrl)).blob();
-
         // Copy to clipboard
         try {
+          const blob = await (await fetch(response.dataUrl)).blob();
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': blob })
           ]);
-          showNotification('Screenshot copied to clipboard!');
+          showNotification('Copied to clipboard!');
         } catch (err) {
           console.error('Clipboard error:', err);
         }
 
-        // Paste into Claude
-        await pasteImageToClaude(blob);
+        // Send to Claude
+        showNotification('Sending to Claude...');
+        chrome.runtime.sendMessage({
+          action: 'pasteImageToClaude',
+          dataUrl: response.dataUrl
+        }, (result) => {
+          if (result && result.success) {
+            showNotification('Sent to Claude!');
+          } else {
+            showNotification('Check Claude tab', false);
+          }
+        });
+      } else {
+        showNotification('Capture failed', true);
       }
     });
   } catch (error) {
     console.error('Error capturing area:', error);
-    showNotification('Error capturing screenshot', true);
-  }
-}
-
-// Paste image into Claude's input
-async function pasteImageToClaude(blob) {
-  try {
-    // Find Claude's input area
-    const inputArea = findClaudeInput();
-    if (!inputArea) {
-      showNotification('Could not find Claude input area', true);
-      return;
-    }
-
-    // Focus the input
-    inputArea.focus();
-    inputArea.click();
-
-    // Wait a moment for focus
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Create a file from blob
-    const file = new File([blob], 'screenshot.png', { type: 'image/png' });
-
-    // Method 1: Try DataTransfer with paste event
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-
-    const pasteEvent = new ClipboardEvent('paste', {
-      clipboardData: dataTransfer,
-      bubbles: true,
-      cancelable: true,
-      composed: true
-    });
-
-    // Try dispatching on input area
-    inputArea.dispatchEvent(pasteEvent);
-
-    // Method 2: Try dispatching on document
-    document.dispatchEvent(pasteEvent);
-
-    // Method 3: Try using input event with file
-    const inputEvent = new InputEvent('input', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertFromPaste'
-    });
-    inputArea.dispatchEvent(inputEvent);
-
-    // Method 4: Look for file drop zone and simulate drop
-    await simulateFileDrop(file, inputArea);
-
-    showNotification('Screenshot pasted to Claude!');
-  } catch (error) {
-    console.error('Error pasting to Claude:', error);
-    showNotification('Check if screenshot was copied to clipboard', false);
-  }
-}
-
-// Simulate file drop
-async function simulateFileDrop(file, targetElement) {
-  try {
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-
-    const dropEvent = new DragEvent('drop', {
-      dataTransfer: dataTransfer,
-      bubbles: true,
-      cancelable: true
-    });
-
-    targetElement.dispatchEvent(dropEvent);
-
-    // Also try on parent containers
-    const containers = [
-      targetElement.parentElement,
-      targetElement.closest('[role="textbox"]'),
-      targetElement.closest('.ProseMirror'),
-      document.querySelector('[data-testid="chat-input"]')?.parentElement
-    ].filter(Boolean);
-
-    for (const container of containers) {
-      if (container) {
-        container.dispatchEvent(dropEvent);
-      }
-    }
-  } catch (error) {
-    console.error('Drop simulation error:', error);
+    showNotification('Error capturing', true);
   }
 }
 
@@ -318,179 +243,36 @@ async function sendTextToClaude() {
   const text = textInput.value.trim();
 
   if (!text) {
-    showNotification('Please enter some text', true);
+    showNotification('Enter text first', true);
     return;
   }
 
   try {
-    const inputArea = findClaudeInput();
-    if (!inputArea) {
-      showNotification('Could not find Claude input area', true);
-      return;
-    }
+    showNotification('Sending to Claude...');
 
-    // Focus and click the input
-    inputArea.focus();
-    inputArea.click();
-
-    // Wait for focus
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Clear any existing content
-    inputArea.textContent = '';
-
-    // Method 1: Use execCommand (works with contenteditable)
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(inputArea);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    document.execCommand('insertText', false, text);
-
-    // Method 2: Directly set innerHTML for ProseMirror
-    if (inputArea.classList.contains('ProseMirror')) {
-      // ProseMirror specific
-      const p = inputArea.querySelector('p') || document.createElement('p');
-      p.textContent = text;
-      p.classList.remove('is-empty', 'is-editor-empty');
-
-      if (!p.parentElement) {
-        inputArea.innerHTML = '';
-        inputArea.appendChild(p);
+    chrome.runtime.sendMessage({
+      action: 'sendToClaude',
+      data: { text }
+    }, (result) => {
+      if (result && result.success) {
+        showNotification('Sent to Claude!');
+        textInput.value = '';
+      } else {
+        showNotification('Check Claude tab', false);
       }
-    }
-
-    // Trigger all relevant events
-    inputArea.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-    inputArea.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    inputArea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, composed: true }));
-    inputArea.dispatchEvent(new InputEvent('input', {
-      bubbles: true,
-      composed: true,
-      inputType: 'insertText',
-      data: text
-    }));
-
-    showNotification('Text pasted to Claude!');
-
-    // Wait a bit then click send
-    setTimeout(() => {
-      clickClaudeSend();
-      textInput.value = '';
-    }, 500);
+    });
   } catch (error) {
     console.error('Error sending to Claude:', error);
-    showNotification('Error sending to Claude', true);
-  }
-}
-
-// Find Claude's input element
-function findClaudeInput() {
-  // Try multiple selectors
-  const selectors = [
-    '[data-testid="chat-input"]',
-    '.ProseMirror[contenteditable="true"]',
-    'div[contenteditable="true"][role="textbox"]',
-    'p[data-placeholder*="How can I help you today?"]'
-  ];
-
-  for (const selector of selectors) {
-    const element = document.querySelector(selector);
-    if (element) {
-      // If it's a paragraph, get the parent ProseMirror div
-      if (element.tagName === 'P') {
-        return element.closest('.ProseMirror') || element;
-      }
-      return element;
-    }
-  }
-
-  return null;
-}
-
-// Click Claude's send button
-function clickClaudeSend() {
-  try {
-    // Try multiple strategies to find and click the send button
-
-    // Strategy 1: Direct selectors
-    const selectors = [
-      'button[aria-label="Send message"]',
-      'button[aria-label*="Send"]',
-      'button.Button_claude__tTMUm',
-      'form button[type="submit"]',
-      'button[type="button"] svg[viewBox="0 0 256 256"]'
-    ];
-
-    for (const selector of selectors) {
-      const sendBtn = document.querySelector(selector);
-      if (sendBtn && !sendBtn.disabled && sendBtn.offsetParent !== null) {
-        sendBtn.click();
-        showNotification('Message sent!');
-        return;
-      }
-    }
-
-    // Strategy 2: Find button with up arrow SVG icon
-    const allButtons = document.querySelectorAll('button[type="button"]');
-    for (const btn of allButtons) {
-      const svg = btn.querySelector('svg');
-      if (svg && !btn.disabled && btn.offsetParent !== null) {
-        const path = svg.querySelector('path');
-        if (path) {
-          const d = path.getAttribute('d');
-          // Check if it's the up arrow path from Claude's send button
-          if (d && (d.includes('M208.49,120.49') || d.includes('120.49') || d.toLowerCase().includes('l72'))) {
-            btn.click();
-            showNotification('Message sent!');
-            return;
-          }
-        }
-      }
-    }
-
-    // Strategy 3: Find button near the input area
-    const inputArea = findClaudeInput();
-    if (inputArea) {
-      const container = inputArea.closest('form') || inputArea.closest('div[class*="chat"]');
-      if (container) {
-        const nearbyButtons = container.querySelectorAll('button');
-        for (const btn of nearbyButtons) {
-          if (!btn.disabled && btn.offsetParent !== null && btn.querySelector('svg')) {
-            btn.click();
-            showNotification('Message sent!');
-            return;
-          }
-        }
-      }
-    }
-
-    // Strategy 4: Use keyboard shortcut (Enter)
-    if (inputArea) {
-      const enterEvent = new KeyboardEvent('keydown', {
-        key: 'Enter',
-        code: 'Enter',
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-        cancelable: true
-      });
-      inputArea.dispatchEvent(enterEvent);
-      showNotification('Sent using Enter key!');
-      return;
-    }
-
-    showNotification('Could not find send button - text pasted', false);
-  } catch (error) {
-    console.error('Error clicking send:', error);
-    showNotification('Text pasted - click send manually', false);
+    showNotification('Error sending', true);
   }
 }
 
 // Show notification
 function showNotification(message, isError = false) {
+  // Remove existing notifications
+  const existing = document.querySelectorAll('.claude-helper-notification');
+  existing.forEach(n => n.remove());
+
   const notification = document.createElement('div');
   notification.className = 'claude-helper-notification' + (isError ? ' error' : '');
   notification.textContent = message;
@@ -504,7 +286,7 @@ function showNotification(message, isError = false) {
   setTimeout(() => {
     notification.classList.remove('show');
     setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  }, 2500);
 }
 
 // Initialize when DOM is ready
@@ -514,12 +296,12 @@ if (document.readyState === 'loading') {
   createFloatingWindow();
 }
 
-// Re-inject if page navigation happens
+// Re-inject if page navigation happens (for SPAs)
 let lastUrl = location.href;
 new MutationObserver(() => {
   const url = location.href;
   if (url !== lastUrl) {
     lastUrl = url;
-    setTimeout(createFloatingWindow, 1000);
+    setTimeout(createFloatingWindow, 500);
   }
 }).observe(document, { subtree: true, childList: true });
