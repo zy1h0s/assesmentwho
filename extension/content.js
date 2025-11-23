@@ -203,7 +203,23 @@ async function captureArea(area) {
       area: area,
       devicePixelRatio: window.devicePixelRatio
     }, async (response) => {
+      console.log('Capture response:', response);
+
+      if (chrome.runtime.lastError) {
+        console.error('Runtime error:', chrome.runtime.lastError);
+        showNotification('Error: ' + chrome.runtime.lastError.message, true);
+        return;
+      }
+
+      if (response && response.error) {
+        console.error('Capture error:', response.error);
+        showNotification('Capture error: ' + response.error, true);
+        return;
+      }
+
       if (response && response.dataUrl) {
+        console.log('Got dataUrl, length:', response.dataUrl.length);
+
         // Copy to clipboard
         try {
           const blob = await (await fetch(response.dataUrl)).blob();
@@ -213,10 +229,11 @@ async function captureArea(area) {
           showNotification('Copied to clipboard!');
         } catch (err) {
           console.error('Clipboard error:', err);
+          showNotification('Clipboard failed but continuing...', false);
         }
 
         // Send to Claude
-        showNotification('Sending to Claude...');
+        showNotification('Switching to Claude...');
         chrome.runtime.sendMessage({
           action: 'pasteImageToClaude',
           dataUrl: response.dataUrl
@@ -228,12 +245,13 @@ async function captureArea(area) {
           }
         });
       } else {
-        showNotification('Capture failed', true);
+        console.error('No dataUrl in response:', response);
+        showNotification('No image data received', true);
       }
     });
   } catch (error) {
     console.error('Error capturing area:', error);
-    showNotification('Error capturing', true);
+    showNotification('Error: ' + error.message, true);
   }
 }
 
@@ -289,19 +307,16 @@ function showNotification(message, isError = false) {
   }, 2500);
 }
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', createFloatingWindow);
-} else {
-  createFloatingWindow();
-}
-
-// Re-inject if page navigation happens (for SPAs)
-let lastUrl = location.href;
-new MutationObserver(() => {
-  const url = location.href;
-  if (url !== lastUrl) {
-    lastUrl = url;
-    setTimeout(createFloatingWindow, 500);
+// Listen for toggle message from background
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'toggle') {
+    const floatWindow = document.getElementById('claude-helper-float');
+    if (floatWindow) {
+      floatWindow.remove();
+    }
+    sendResponse({ success: true });
   }
-}).observe(document, { subtree: true, childList: true });
+});
+
+// Initialize
+createFloatingWindow();

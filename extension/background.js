@@ -1,13 +1,52 @@
+// Track which tabs have the extension injected
+const injectedTabs = new Set();
+
+// Listen for extension icon click
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    // Toggle: if already injected, remove it; otherwise inject it
+    if (injectedTabs.has(tab.id)) {
+      // Remove by reloading the tab or sending message to remove
+      await chrome.tabs.sendMessage(tab.id, { action: 'toggle' });
+      injectedTabs.delete(tab.id);
+    } else {
+      // Inject CSS
+      await chrome.scripting.insertCSS({
+        target: { tabId: tab.id },
+        files: ['styles.css']
+      });
+
+      // Inject JS
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+
+      injectedTabs.add(tab.id);
+    }
+  } catch (error) {
+    console.error('Injection error:', error);
+  }
+});
+
+// Clean up when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  injectedTabs.delete(tabId);
+});
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'captureScreen') {
     captureScreen(sender.tab.id, request.area, request.devicePixelRatio)
-      .then(dataUrl => sendResponse({ dataUrl }))
+      .then(dataUrl => {
+        console.log('Capture successful, dataUrl length:', dataUrl?.length);
+        sendResponse({ dataUrl });
+      })
       .catch(error => {
         console.error('Capture error:', error);
         sendResponse({ error: error.message });
       });
-    return true; // Keep channel open for async response
+    return true;
   }
 
   if (request.action === 'sendToClaude') {
@@ -28,13 +67,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Capture the screen
 async function captureScreen(tabId, area, devicePixelRatio = 1) {
   try {
+    console.log('Capturing screen for tab:', tabId, 'area:', area);
+
+    // Make sure the tab is active
+    await chrome.tabs.update(tabId, { active: true });
+
+    // Wait a moment for tab to be active
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Get the window ID
+    const tab = await chrome.tabs.get(tabId);
+
     // Capture the visible tab
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
       format: 'png'
     });
 
+    console.log('Raw capture successful, cropping...');
+
     // Crop the image to the selected area
     const croppedDataUrl = await cropImage(dataUrl, area, devicePixelRatio);
+
+    console.log('Crop successful');
 
     return croppedDataUrl;
   } catch (error) {
@@ -50,40 +104,51 @@ function cropImage(dataUrl, area, devicePixelRatio) {
 
     img.onload = () => {
       try {
+        console.log('Image loaded, size:', img.width, 'x', img.height);
+        console.log('Crop area:', area);
+
         const canvas = new OffscreenCanvas(
-          area.width * devicePixelRatio,
-          area.height * devicePixelRatio
+          Math.floor(area.width * devicePixelRatio),
+          Math.floor(area.height * devicePixelRatio)
         );
         const ctx = canvas.getContext('2d');
 
         // Draw the cropped portion
         ctx.drawImage(
           img,
-          area.left * devicePixelRatio,
-          area.top * devicePixelRatio,
-          area.width * devicePixelRatio,
-          area.height * devicePixelRatio,
+          Math.floor(area.left * devicePixelRatio),
+          Math.floor(area.top * devicePixelRatio),
+          Math.floor(area.width * devicePixelRatio),
+          Math.floor(area.height * devicePixelRatio),
           0,
           0,
-          area.width * devicePixelRatio,
-          area.height * devicePixelRatio
+          Math.floor(area.width * devicePixelRatio),
+          Math.floor(area.height * devicePixelRatio)
         );
 
         // Convert to blob then to data URL
         canvas.convertToBlob({ type: 'image/png' })
           .then(blob => {
             const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
+            reader.onloadend = () => {
+              console.log('Crop complete');
+              resolve(reader.result);
+            };
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           })
           .catch(reject);
       } catch (error) {
+        console.error('Crop error:', error);
         reject(error);
       }
     };
 
-    img.onerror = reject;
+    img.onerror = (error) => {
+      console.error('Image load error:', error);
+      reject(error);
+    };
+
     img.src = dataUrl;
   });
 }
@@ -103,7 +168,7 @@ async function findOrCreateClaudeTab() {
     await chrome.windows.update(claudeTab.windowId, { focused: true });
 
     // Wait for tab to be ready
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     return claudeTab;
   } else {
@@ -114,7 +179,7 @@ async function findOrCreateClaudeTab() {
     });
 
     // Wait for page to load
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     return claudeTab;
   }
@@ -190,7 +255,7 @@ function pasteAndSendText(text) {
       inputArea.focus();
       inputArea.click();
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 200));
 
       // Clear existing content
       inputArea.textContent = '';
@@ -213,7 +278,7 @@ function pasteAndSendText(text) {
         data: text
       }));
 
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
 
       // Click send button
       const sendSelectors = [
@@ -242,15 +307,7 @@ function pasteAndSendText(text) {
         sendBtn.click();
         resolve({ success: true });
       } else {
-        // Try Enter key
-        const enterEvent = new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          bubbles: true
-        });
-        inputArea.dispatchEvent(enterEvent);
-        resolve({ success: true, method: 'enter' });
+        resolve({ success: true, method: 'manual' });
       }
     } catch (error) {
       resolve({ error: error.message });
@@ -289,7 +346,7 @@ function pasteImage(dataUrl) {
       inputArea.focus();
       inputArea.click();
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 200));
 
       // Create paste event
       const dataTransfer = new DataTransfer();
