@@ -98,59 +98,55 @@ async function captureScreen(tabId, area, devicePixelRatio = 1) {
 }
 
 // Crop image to selected area
-function cropImage(dataUrl, area, devicePixelRatio) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
+async function cropImage(dataUrl, area, devicePixelRatio) {
+  try {
+    console.log('Crop area:', area);
 
-    img.onload = () => {
-      try {
-        console.log('Image loaded, size:', img.width, 'x', img.height);
-        console.log('Crop area:', area);
+    // Convert data URL to blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
 
-        const canvas = new OffscreenCanvas(
-          Math.floor(area.width * devicePixelRatio),
-          Math.floor(area.height * devicePixelRatio)
-        );
-        const ctx = canvas.getContext('2d');
+    // Create ImageBitmap (works in service workers)
+    const imageBitmap = await createImageBitmap(blob);
 
-        // Draw the cropped portion
-        ctx.drawImage(
-          img,
-          Math.floor(area.left * devicePixelRatio),
-          Math.floor(area.top * devicePixelRatio),
-          Math.floor(area.width * devicePixelRatio),
-          Math.floor(area.height * devicePixelRatio),
-          0,
-          0,
-          Math.floor(area.width * devicePixelRatio),
-          Math.floor(area.height * devicePixelRatio)
-        );
+    console.log('Image loaded, size:', imageBitmap.width, 'x', imageBitmap.height);
 
-        // Convert to blob then to data URL
-        canvas.convertToBlob({ type: 'image/png' })
-          .then(blob => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              console.log('Crop complete');
-              resolve(reader.result);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          })
-          .catch(reject);
-      } catch (error) {
-        console.error('Crop error:', error);
-        reject(error);
-      }
-    };
+    const canvas = new OffscreenCanvas(
+      Math.floor(area.width * devicePixelRatio),
+      Math.floor(area.height * devicePixelRatio)
+    );
+    const ctx = canvas.getContext('2d');
 
-    img.onerror = (error) => {
-      console.error('Image load error:', error);
-      reject(error);
-    };
+    // Draw the cropped portion
+    ctx.drawImage(
+      imageBitmap,
+      Math.floor(area.left * devicePixelRatio),
+      Math.floor(area.top * devicePixelRatio),
+      Math.floor(area.width * devicePixelRatio),
+      Math.floor(area.height * devicePixelRatio),
+      0,
+      0,
+      Math.floor(area.width * devicePixelRatio),
+      Math.floor(area.height * devicePixelRatio)
+    );
 
-    img.src = dataUrl;
-  });
+    // Convert to blob then to data URL
+    const croppedBlob = await canvas.convertToBlob({ type: 'image/png' });
+
+    // Convert blob to data URL
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      reader.onloadend = () => {
+        console.log('Crop complete');
+        resolve(reader.result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(croppedBlob);
+    });
+  } catch (error) {
+    console.error('Crop error:', error);
+    throw error;
+  }
 }
 
 // Find or create Claude.ai tab
