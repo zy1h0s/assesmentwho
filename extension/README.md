@@ -1,20 +1,31 @@
 # Claude Screenshot Helper Extension
 
-A Chrome/Edge extension that adds a floating helper tool to Claude.ai for taking screenshots and sending text messages.
+A Chrome/Edge extension that adds a minimal floating window to **any website** for capturing screenshots and sending messages to Claude.ai.
 
 ## Features
 
-- 🎯 **Draggable Floating Window** - 60% opacity, stays on top
-- 📸 **Screenshot Capture** - Select any area of the screen (like Windows Snipping Tool)
-- 📋 **Auto-Paste to Claude** - Screenshots are automatically copied and pasted into Claude's input
-- ✍️ **Text Input** - Write messages in the floating window
-- 🚀 **Auto-Send** - Text is pasted to Claude and automatically sent
+- 🌐 **Works on Any Website** - Floating window appears everywhere
+- 📸 **Screenshot Capture** - Select any area like Windows Snipping Tool
+- 🔄 **Auto Tab Switching** - Automatically switches to Claude.ai when sending
+- ✍️ **Quick Text Messages** - Type and send messages to Claude from anywhere
+- 🎨 **Minimal Design** - Black/white, 60% opacity, no blur
+- 🚀 **Auto-Send** - Automatically pastes and sends to Claude
+
+## How It Works
+
+1. The floating window appears on every website you visit
+2. You can capture screenshots or write text from anywhere
+3. When you click Send, the extension:
+   - Finds an open Claude.ai tab (or creates a new one)
+   - Switches to that tab and brings it to focus
+   - Pastes your content into Claude's input
+   - Clicks the send button automatically
 
 ## Installation
 
 ### Chrome/Edge
 
-1. Open Chrome/Edge and navigate to:
+1. Open your browser's extensions page:
    - Chrome: `chrome://extensions/`
    - Edge: `edge://extensions/`
 
@@ -24,83 +35,94 @@ A Chrome/Edge extension that adds a floating helper tool to Claude.ai for taking
 
 4. Navigate to and select the `extension` folder
 
-5. The extension should now be loaded!
-
-6. Navigate to https://claude.ai/ to use it
+5. The extension is now loaded! Visit any website to see the floating window
 
 ## Usage
 
 ### Screenshot Capture
 
-1. On Claude.ai, you'll see a floating window in the top-right
-2. Click **📷 Capture Screenshot**
+1. On **any website**, you'll see a minimal floating window
+2. Click **Capture**
 3. Click and drag to select the area you want to capture
-4. Release the mouse to take the screenshot
-5. The screenshot is automatically copied to clipboard and pasted into Claude!
+4. Release to capture - it will switch to Claude.ai and paste automatically
+5. Press ESC or right-click to cancel
 
-### Text Messages
+### Send Text Messages
 
 1. Type your message in the text area
-2. Click **Send to Claude**
-3. The text will be pasted into Claude's input and automatically sent
+2. Click **Send**
+3. Extension switches to Claude.ai and sends your message
+4. If no Claude.ai tab is open, it creates one
 
 ### Window Controls
 
-- **Drag** - Click and drag the header to move the window
+- **Drag** - Click and drag the header to move
 - **Minimize** - Click the `−` button to collapse/expand
+- **Cancel Capture** - ESC key or right-click during selection
 
-## How It Works
+## Design
 
-The extension:
-1. Injects a floating UI into Claude.ai pages
-2. Captures screenshots using Chrome's `captureVisibleTab` API
-3. Crops the captured image to your selected area
-4. Automatically finds Claude's input field and paste button
-5. Simulates paste and click events to send your content
+Minimal black and white aesthetic:
+- 60% opacity black background
+- White borders and text
+- No blur effects
+- Compact 240px width
+- Always on top (highest z-index)
+
+## How Tab Switching Works
+
+The extension mimics human behavior:
+1. Searches for existing Claude.ai tabs
+2. If found, activates that tab and window
+3. If not found, creates a new tab at `https://claude.ai/new`
+4. Waits for tab to be active and focused
+5. Then pastes and sends your content
+
+This ensures the paste events work correctly by having the tab active.
 
 ## Permissions
 
-- `activeTab` - To capture screenshots of the current tab
-- `tabs` - To access tab information
-- `scripting` - To inject the content script
-- `clipboardWrite` - To copy screenshots to clipboard
-- `https://claude.ai/*` - To access Claude.ai pages
-
-## Troubleshooting
-
-### Extension not showing on Claude.ai
-- Refresh the page after installing the extension
-- Make sure you're on https://claude.ai/ (not other domains)
-
-### Screenshot not pasting
-- Make sure the Claude.ai page is fully loaded
-- Try clicking on Claude's input field first
-- Check browser console for errors (F12)
-
-### Send button not working
-- Wait a moment after pasting text
-- Make sure Claude's input field is not empty
-- The send button must not be disabled
+- `<all_urls>` - To show floating window on all websites
+- `tabs` - To find and switch to Claude.ai tabs
+- `scripting` - To inject paste scripts into Claude.ai
+- `clipboardWrite` - To copy screenshots
 
 ## Files
 
-- `manifest.json` - Extension configuration
-- `content.js` - Main functionality and UI
-- `background.js` - Screenshot capture service
-- `styles.css` - Floating window styles
+- `manifest.json` - Extension configuration (works on all URLs)
+- `content.js` - Floating UI and user interaction
+- `background.js` - Tab management and Claude.ai integration
+- `styles.css` - Minimal black/white styling
+
+## Troubleshooting
+
+### Floating window not appearing
+- Refresh the page after installing
+- Check if extension is enabled in extensions page
+
+### Screenshot/text not pasting
+- Extension will show notification status
+- Check if a Claude.ai tab opened/activated
+- Look at the Claude.ai tab - content should be there
+- May need to wait a moment for page to fully load
+
+### Send button not working
+- The extension tries multiple methods to find/click the send button
+- If auto-send fails, you can manually click send in Claude
+- Content will still be pasted correctly
 
 ## Development
 
-To modify the extension:
-
-1. Edit the files in the `extension` folder
+To modify:
+1. Edit files in the `extension` folder
 2. Go to `chrome://extensions/`
-3. Click the refresh icon on the extension card
-4. Refresh Claude.ai to see changes
+3. Click refresh icon on the extension card
+4. Refresh any open web pages
 
 ## Notes
 
-- The extension only works on https://claude.ai/*
-- Screenshots are cropped to your selected area
-- The floating window is draggable and minimizable
-- All operations work locally in your browser
+- Works on all websites (injected via `<all_urls>`)
+- Screenshots are copied to clipboard as backup
+- Extension automatically finds or creates Claude.ai tabs
+- All operations happen locally in your browser
+- Minimal performance impact
